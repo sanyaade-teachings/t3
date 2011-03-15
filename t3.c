@@ -202,28 +202,28 @@ t3_close(T3_face *face) {
 static void
 rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos) {
 	Edge	edges[MAXSEG], *e, *eoe;
-	float	i,j,y, sy = (at.y + my >= bm.y)? bm.y - at.y: my;
+	float	i,y,sy;
 	int	w, x, x2;
 	T3_seg	*s;
 
 	bm.bm += (int)at.y * bm.x;
+	sy = (at.y + my >= bm.y)? bm.y - at.y: my;
 
 	y = at.y;
-	for (i = 0; i < sy; y++, bm.bm += bm.x) {
+	for (i = 0; i < sy; i++, y++, bm.bm += bm.x) {
 		while (seg < eos && seg->b.y < i)
 			seg++;
 		if (seg == eos)
 			break;
 			
 		/* Get edges that intersect this line */
-		j = i + 1;
-		for (i-=.5; i<j; i+=.1)
-			for (eoe=edges, s=seg; s < eos; s++)
-				if (s->a.y < i && i <= s->b.y) {
-					eoe->x = at.x + s->a.x
-					  + s->m * (i - s->a.y);
-					eoe++->dir = s->dir;
-				}
+		eoe=edges;
+		for (s=seg; s < eos; s++)
+			if (s->a.y < i && i <= s->b.y) {
+				eoe->x = at.x + s->a.x
+				  + s->m * (i - s->a.y);
+				eoe++->dir = s->dir;
+			}
 			
 		/* Remove overlapping edges */
 		e=edges;
@@ -270,7 +270,7 @@ static T3_seg*
 inflate(T3_seg *seg, T3_pt *p, u8 *flags, int np, void *ends) {
 	T3_pt start, pp, cp;
 	int curve, close = 0, nc = 0, i;
-	float flat = 1;
+	float flat = .05;
 
 	for (i = 0; i < np; i++)
 		if (close == i) {	/* end of contour */
