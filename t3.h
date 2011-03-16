@@ -1,3 +1,5 @@
+typedef unsigned T3_col;
+
 typedef struct {
 	float	x, y;
 } T3_pt;
@@ -9,7 +11,7 @@ typedef struct {
 } T3_seg;
 
 typedef struct {
-	char	*bm;
+	T3_col	*bm;
 	int	x, y;
 } T3_bm;
 
@@ -24,10 +26,14 @@ typedef struct {
 	int	nglyph;		/* number of glyphs */
 	int	ascender;	/* ascender */
 	int	descender;	/* descender */
-	int	round;		/* determine whether to draw quality curves */
 	void	*loca;		/* pointer to 'loca' table */
 	void	*glyf;		/* 'glyf' table */
 } T3_face;
+
+static T3_col
+t3_rgb(unsigned char r, unsigned char g, unsigned char b) {
+	return (r<<16) + (g<<8) + b;
+}
 
 static T3_pt
 t3_pt(float x, float y) {
@@ -67,10 +73,10 @@ void	t3_cache(T3_face *face, int lo, int hi);
 
 int	t3_getGlyph(T3_face *face, int c);
 int	t3_getShape(T3_face *face, T3_seg *segs, int g);
-int	t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g);
-int	t3_drawChar(T3_face *face, T3_bm bm, T3_pt at, int c);
-int	t3_drawString(T3_face *face, T3_bm bm, T3_pt at, char *s, int n);
-int	t3_drawUnicode(T3_face *face, T3_bm bm, T3_pt at, wchar_t *s, int n);
+int	t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g, T3_col col);
+int	t3_drawChar(T3_face *face, T3_bm bm, T3_pt at, int c, T3_col col);
+int	t3_drawString(T3_face *face, T3_bm bm, T3_pt at, char *s, int n, T3_col col);
+int	t3_drawUnicode(T3_face *face, T3_bm bm, T3_pt at, wchar_t *s, int n, T3_col col);
 int	t3_fitString(T3_face *face, float width, char *s, int n, float *ptotal);
 int	t3_fitUnicode(T3_face *face, float width, wchar_t *s, int n, float *ptotal);
 int	t3_hitString(T3_face *face, float x, char *s, int n);

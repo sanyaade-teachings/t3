@@ -199,11 +199,22 @@ t3_close(T3_face *face) {
 	return 0;
 }
 
+
+static T3_col
+blend(T3_col src, T3_col col, float a) {
+	T3_col al = a*255;
+	T3_col rb = ((col & 0xff00ff) * al) +
+		((src & 0xff00ff) * (255-al)) & 0xff00ff00;
+	T3_col g = ((col & 0xff00) * al) +
+		((src & 0xff00) * (255-al)) & 0xff0000;
+	return 0xff000000 + ((rb | g) >> 8);
+}
+
 static void
-rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos) {
+rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos, T3_col col) {
 	Edge	edges[MAXSEG], *e, *eoe;
 	float	i,y,sy;
-	int	w, x, x2;
+	int	w,j, x, x2;
 	T3_seg	*s;
 
 	bm.bm += (int)at.y * bm.x;
@@ -242,15 +253,14 @@ rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos) {
 			
 			x = e->x;
 			x2 = min(bm.x, e[1].x);
-			memset(bm.bm + max(x, 0) + 1,
-				255,
-				max(0, x2 - x - 1));
+			for (j=max(x+1, 0); j<x2; j++)
+				bm.bm[j] = col;
 			if (x >= 0 && x < bm.x)
-				bm.bm[x] = min(255, bm.bm[x]
-					+ 255 - (e->x - x) * 255);
+				bm.bm[x] = blend(bm.bm[x], col,
+					1 - (e->x - x));
 			if (x2 >= 0 && x2 < bm.x)
-				bm.bm[x2] = min(255, bm.bm[x2]
-					+ (e[1].x - x2) * 255);
+				bm.bm[x2] = blend(bm.bm[x2], col,
+					e[1].x - x2);
 		}
 	}
 }
@@ -386,7 +396,7 @@ t3_cache(T3_face *face, int lo, int hi) {
 	}
 }
 
-t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g) {
+t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g, T3_col col) {
 	if (g < 0 || g >= face->nglyph)
 		return 0;
 	if (at.x < -t3_getWidth(face,g) || at.x >= bm.x)
@@ -398,30 +408,29 @@ t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g) {
 		t3_cache(face,g,g+1);
 	rasterize(bm, at,
 		(face->ascender - face->descender) * face->scale.y + 1,
-		face->seg[g],
-		face->seg[g] + face->nseg[g]);
+		face->seg[g], face->seg[g] + face->nseg[g], col);
 	return 1;
 }
 
-t3_drawChar(T3_face *face, T3_bm bm, T3_pt at, int c) {
+t3_drawChar(T3_face *face, T3_bm bm, T3_pt at, int c, T3_col col) {
 	if (c < 0 && 65536 <= c)
 		return 0;
-	return t3_drawGlyph(face, bm, at, t3_getGlyph(face, c));
+	return t3_drawGlyph(face, bm, at, t3_getGlyph(face, c), col);
 }
 
-t3_drawString(T3_face *face, T3_bm bm, T3_pt at, char *s, int n) {
+t3_drawString(T3_face *face, T3_bm bm, T3_pt at, char *s, int n, T3_col col) {
 	for ( ; n && *s; n--, s++) {
 		int	g = t3_getGlyph(face, *s++);
-		t3_drawGlyph(face, bm, at, g);
+		t3_drawGlyph(face, bm, at, g, col);
 		at.x += t3_getWidth(face, g);
 	}
 	return 1;
 }
 
-t3_drawUnicode(T3_face *face, T3_bm bm, T3_pt at, wchar_t *s, int n) {
+t3_drawUnicode(T3_face *face, T3_bm bm, T3_pt at, wchar_t *s, int n, T3_col col) {
 	for ( ; n && *s; n--, s++) {
 		int	g = t3_getGlyph(face, *s);
-		t3_drawGlyph(face, bm, at, g);
+		t3_drawGlyph(face, bm, at, g, col);
 		at.x += t3_getWidth(face, g);
 	}
 	return 1;

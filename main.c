@@ -10,11 +10,8 @@
 
 T3_face		face[19];
 float		scroll = 0;
-struct {
-	BITMAPINFOHEADER h;
-	RGBQUAD		pal[256];
-} bmi={{sizeof(bmi.h),0,0,1,8,0,0,0,0,256,256},};
-char		bmd[800*600];
+BITMAPINFOHEADER bmih={sizeof(bmih),0,0,1,32,0,0,0,0,256,256};
+T3_col		bmd[800*600];
 T3_bm		bm={bmd, 800,600};
 
 loadttf(T3_face *face, char *fn, int index, float height) {
@@ -41,13 +38,18 @@ gen(T3_bm bm,  T3_pt pt) {
 	float	r;
 	int	i;
 	
+	for (i = 0; i < bm.x * bm.y; i++)
+//		bm.bm[i] = t3_rgb(64,64,64);
+		bm.bm[i] = t3_rgb(255,255,230);
 	for (i = 0; i < 19; i++) {
 		float	px = 9+i;
 		int	n;
 		txt[0] = (int) px / 10 + '0';
 		txt[1] = (int) px % 10 + '0';
 		n = t3_fitUnicode(face+i, bm.x, txt, -1, 0);
-		t3_drawUnicode(face+i, bm, pt, txt, n);
+		t3_drawUnicode(face+i, bm, pt, txt, n,
+//			t3_rgb(255,127,39));
+			t3_rgb(80,80,128));
 		pt.y += px*96/72;
 	}
 }
@@ -55,45 +57,29 @@ gen(T3_bm bm,  T3_pt pt) {
 #include "dumpbm.c"
 init(HWND hwnd) {
 	HDC	dc;
-	int	i;	
-	for (i=0; i<256; i++) {
-		bmi.pal[i].rgbRed=255-i;
-		bmi.pal[i].rgbBlue=255-i;
-		bmi.pal[i].rgbGreen=255-i;
-	}
-	bmi.h.biWidth=bm.x;
-	bmi.h.biHeight=-bm.y;
-	bmi.h.biSizeImage=bm.x*bm.y;
+	int	i;
 	
-//	if (!loadttf(&face, "c:/windows/fonts/simfang.ttf"))
-//	if (!loadttf(&face, "c:/windows/fonts/palai.ttf"))
-//	if (!loadttf(&face, "c:/windows/fonts/segoeuii.ttf"))
-//	if (!loadttf(&face, "c:/windows/fonts/consolai.ttf"))
-//	if (!loadttf(&face, "c:/windows/fonts/arial.ttf"))
-//	if (!loadttf(&face, "c:/windows/fonts/cour.ttf"))
-//	if (!loadttf(&face, "c:/windows/fonts/tahoma.ttf"))
-//	if (!loadttf(&face, "c:/windows/fonts/centsbmono.ttf"))
-//		return 0;
-
+	bmih.biWidth=bm.x;
+	bmih.biHeight=-bm.y;
+	bmih.biSizeImage=bm.x*bm.y;
 	for (i = 0; i < 19; i++)
 		loadttf(face+i,
 			"c:/windows/fonts/segoeuii.ttf", 0,
-//			"c:/windows/fonts/georgia.ttf", 0,
 			(i+9)*96/72.0);
 
 	gen(bm, t3_pt(0,0));
-
-//t3_drawUnicode(&face, bm, t3_pt(0,0), L"e");
-	dumpgraybm("out.bmp",bm.bm,bm.x,bm.y,invertbm);
+	dump32bm("out.bmp",bm.bm,bm.x,bm.y);
 	return 1;
 }
 
 paint(HWND hwnd) {
 	PAINTSTRUCT	ps;
+	RECT		rt={0,};
 	BeginPaint(hwnd,&ps);
+	AdjustWindowRect(&rt, WS_OVERLAPPEDWINDOW, 0);
 	SetDIBits(ps.hdc,
 		GetCurrentObject(ps.hdc,OBJ_BITMAP),
-		0, bm.y, bm.bm, (void*)&bmi, DIB_RGB_COLORS);
+		rt.top, bm.y, bm.bm, (void*)&bmih, DIB_RGB_COLORS);
 	EndPaint(hwnd,&ps);
 }
 
@@ -108,12 +94,6 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_CREATE:
 		return !init(hwnd);
 	case WM_TIMER:
-		memset(bm.bm, 0, bm.x*bm.y);
-//{
-//int i;
-//for (i=0; i<bm.y; i++)
-//	memset(bm.bm + i*bm.x, i/2, bm.x);
-//}
 		gen(bm, t3_pt(scroll,0));
 		scroll += 1;
 		InvalidateRect(hwnd,0,0);
