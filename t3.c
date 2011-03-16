@@ -406,8 +406,7 @@ t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g, T3_col col) {
 
 	if (!face->seg[g])
 		t3_cache(face,g,g+1);
-	rasterize(bm, at,
-		(face->ascender - face->descender) * face->scale.y + 1,
+	rasterize(bm, at, t3_getHeight(face) + 1,
 		face->seg[g], face->seg[g] + face->nseg[g], col);
 	return 1;
 }

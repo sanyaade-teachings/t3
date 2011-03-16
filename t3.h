@@ -20,13 +20,16 @@ typedef struct {
 	short	adv[65536];	/* glyph advance width */
 	T3_seg	*seg[65536];	/* glyph contour cache */
 	int	nseg[65536];	/* segments in contour */
+	
 	void	*dat;		/* font file data */
+	
 	T3_pt	scale;		/* scale */
-	int	longloc;	/* 'loca' table holds longs */
-	int	nglyph;		/* number of glyphs */
 	int	ascender;	/* ascender */
 	int	descender;	/* descender */
+	
+	int	longloc;	/* 'loca' table holds longs */
 	void	*loca;		/* pointer to 'loca' table */
+	int	nglyph;		/* number of glyphs */
 	void	*glyf;		/* 'glyf' table */
 } T3_face;
 
@@ -64,6 +67,11 @@ t3_getWidth(T3_face *face, int g) {
 	return (g >= 0 && g < face->nglyph)?
 		face->adv[g] * face->scale.x:
 		0;
+}
+
+static float
+t3_getHeight(T3_face *face) {
+	return (face->ascender - face->descender) * face->scale.y;
 }
 
 int	t3_initFace(T3_face *face, void *dat, int index, float height);
