@@ -9,7 +9,7 @@
 #include "t3.h"
 
 T3_face		face;
-T3_bm		bm={0, 0, 0};
+T3_bm		bm;
 HBITMAP		bitmap;
 
 clearBM(T3_bm bm, T3_col col) {
@@ -53,10 +53,11 @@ loadFile(char *fn, int *size) {
 
 loadFace(T3_face *face, char *fn, int index, float height) {
 	void	*dat = loadFile(fn, 0);
-	if (t3_initFace(face,dat,index,height))
-		return 1;
-	free(dat);
-	return 0;
+	if (!dat || !t3_initFace(face,dat,index,height)) {
+		free(dat);
+		return 0;
+	}
+	return 1;
 }
 
 redraw(T3_bm bm) {
@@ -85,36 +86,27 @@ redraw(T3_bm bm) {
 	fclose(f);
 }
 
-init() {
-	loadFace(&face, "georgiai.ttf", 0,
-		15*96/72.0);
-	return 1;
-}
-
-paint(HWND hwnd) {
-	PAINTSTRUCT	ps;
-	HDC		cdc;
-	BeginPaint(hwnd,&ps);
-	cdc = CreateCompatibleDC(ps.hdc);
-	SelectObject(cdc, bitmap);
-	BitBlt(ps.hdc,
-		ps.rcPaint.left,
-		ps.rcPaint.top,
-		ps.rcPaint.right - ps.rcPaint.left,
-		ps.rcPaint.bottom - ps.rcPaint.top,
-		cdc,
-		ps.rcPaint.left,
-		ps.rcPaint.top,
-		SRCCOPY);
-	DeleteDC(cdc);
-	EndPaint(hwnd,&ps);
-}
-
 LRESULT CALLBACK
 WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	PAINTSTRUCT	ps;
+	HDC		cdc;
+	
 	switch (msg) {
 	case WM_PAINT:
-		paint(hwnd);
+		BeginPaint(hwnd,&ps);
+		cdc = CreateCompatibleDC(ps.hdc);
+		SelectObject(cdc, bitmap);
+		BitBlt(ps.hdc,
+			ps.rcPaint.left,
+			ps.rcPaint.top,
+			ps.rcPaint.right - ps.rcPaint.left,
+			ps.rcPaint.bottom - ps.rcPaint.top,
+			cdc,
+			ps.rcPaint.left,
+			ps.rcPaint.top,
+			SRCCOPY);
+		DeleteDC(cdc);
+		EndPaint(hwnd,&ps);
 		return 0;
 	case WM_ERASEBKGND:
 		return 1;
@@ -142,7 +134,8 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	wc.hCursor=LoadCursor(0,IDC_ARROW);
 	RegisterClass(&wc);
 	
-	init();
+	loadFace(&face, "c:/Windows/Fonts/cour.ttf",
+		0, 12*96/72.0);
 	
 	hwnd=CreateWindow(L"Window", L"",
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
