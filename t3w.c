@@ -5,11 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "t3.h"
 #include "t3w.h"
 
-void*
+static void*
 mapFile(wchar_t *fn, int *size) {
 	HANDLE	f = CreateFile(fn, GENERIC_READ, FILE_SHARE_READ, 0,
 		OPEN_EXISTING, 0, 0);
@@ -43,28 +44,29 @@ t3w_initBM(T3_bm *bm, int x, int y) {
 	bmih.biHeight = -y;
 	bmih.biSizeImage = x * y * 4;
 	bitmap = CreateDIBSection(0,(void*)&bmih,
-		DIB_RGB_COLORS, &bm->bm, 0, 0);
+		DIB_RGB_COLORS, &bm->pix, 0, 0);
 	return bitmap;
 }
 
-t3w_loadFaceFile(T3_face *face, wchar_t *fn, int index, float height) {
+t3w_loadFontFile(T3_font *font, wchar_t *fn, int index, float height) {
 	void	*dat = mapFile(fn, 0);
-	if (!dat || !t3_initFace(face,dat,index,height)) {
+	int	err = 1;
+	if (!dat || (err=t3_initFont(font,dat,index,height))) {
 		free(dat);
-		return 0;
+		return err;
 	}
-	return 1;
+	return 0;
 }
 
-t3w_findFace(T3_face *face, wchar_t *name, float height) {
+t3w_findFont(T3_font *font, wchar_t *name, float height) {
 	wchar_t	*reg = L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts";
 	HKEY	key;
 	DWORD	n;
 	
 	if (RegOpenKey(HKEY_LOCAL_MACHINE, reg, &key))
-		return 0;
+		return 1;
 	if (RegQueryInfoKey(key, 0,0, 0, 0,0, 0, &n, 0, 0, 0, 0))
-	  	return 0;
+	  	return 1;
 	
 	while (n--) {
 		wchar_t	*j,*i,tag[1024];
@@ -91,18 +93,18 @@ loop: 			/* Find subfonts in a TrueType Collection */
 			nlen = MAX_PATH;
 			RegEnumValue(key, n, tag,&nlen, 0,
 				0, (char*)(fn+wcslen(fn)), &vlen);
-			return t3w_loadFaceFile(face, fn,sub,height);
+			return t3w_loadFontFile(font, fn,sub,height);
 		}
 		i = j + 3;
 		sub++;
 		if (j)
 			goto loop;
 	}
-	return 0;
+	return 2;
 }
 
-t3w_closeFace(T3_face *face) {
-	t3_closeFace(face);
-	UnmapViewOfFile(face->dat);
-	return 1;
+t3w_closeFont(T3_font *font) {
+	t3_closeFont(font);
+	UnmapViewOfFile(font->dat);
+	return 0;
 }

@@ -11,7 +11,7 @@ typedef struct {
 } T3_seg;
 
 typedef struct {
-	T3_col	*bm;
+	T3_col	*pix;
 	int	x, y;
 } T3_bm;
 
@@ -33,7 +33,7 @@ typedef struct {
 	void	*loca;		/* pointer to 'loca' table */
 	int	nglyph;		/* number of glyphs */
 	void	*glyf;		/* 'glyf' table */
-} T3_face;
+} T3_font;
 
 static T3_col
 t3_rgb(unsigned char r, unsigned char g, unsigned char b) {
@@ -60,37 +60,42 @@ t3_seg(T3_pt a, T3_pt b) {
 }
 
 static
-t3_getGlyph(T3_face *face, int c) {
-	return (c >= 0 && c<65536)? face->cmap[c]: 0;
+t3_getGlyph(T3_font *font, int c) {
+	return (c >= 0 && c<65536)? font->cmap[c]: 0;
 }
 
 static float
-t3_getWidth(T3_face *face, int g) {
-	return (g >= 0 && g < face->nglyph)?
-		face->adv[g] * face->scale.x:
-		0;
+t3_getGlyphWidth(T3_font *font, int g) {
+	return (g >= 0 && g < font->nglyph)
+		? font->adv[g] * font->scale.x
+		: 0;
 }
 
 static float
-t3_getHeight(T3_face *face) {
-	return (face->ascender - face->descender) * face->scale.y;
+t3_getWidth(T3_font *font, int c) {
+	return (0 <= c && c < 65536)
+		? t3_getGlyphWidth(font, t3_getGlyph(font, c))
+		: 0;
 }
 
-int	t3_initFace(T3_face *face, void *dat, int index, float height);
-int	t3_closeFace(T3_face *face);
-void	t3_rescale(T3_face *face, float height, float width);
-void	t3_uncache(T3_face *face, int lo, int hi);
-void	t3_cache(T3_face *face, int lo, int hi);
+static float
+t3_getHeight(T3_font *font) {
+	return (font->ascender - font->descender) * font->scale.y;
+}
 
-int	t3_clearBM(T3_bm bm, T3_col col);
+int	t3_initFont(T3_font *font, void *dat, int index, float height);
+void	t3_closeFont(T3_font *font);
+void	t3_rescale(T3_font *font, float height, float width);
+void	t3_uncache(T3_font *font, int lo, int hi);
+void	t3_cache(T3_font *font, int lo, int hi);
 
-int	t3_getGlyph(T3_face *face, int c);
-int	t3_getShape(T3_face *face, T3_seg *segs, int g);
-int	t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g, T3_col col);
-int	t3_drawChar(T3_face *face, T3_bm bm, T3_pt at, int c, T3_col col);
-int	t3_drawString(T3_face *face, T3_bm bm, T3_pt at, char *s, int n, T3_col col);
-int	t3_drawUnicode(T3_face *face, T3_bm bm, T3_pt at, wchar_t *s, int n, T3_col col);
-int	t3_fitString(T3_face *face, float width, char *s, int n, float *ptotal);
-int	t3_fitUnicode(T3_face *face, float width, wchar_t *s, int n, float *ptotal);
-int	t3_hitString(T3_face *face, float x, char *s, int n);
-int	t3_hitUnicode(T3_face *face, float x, char *s, int n);
+void	t3_clearBM(T3_bm bm, T3_col col);
+
+void	t3_drawGlyph(T3_font *font, T3_bm bm, T3_pt at, int g, T3_col col);
+void	t3_drawChar(T3_font *font, T3_bm bm, T3_pt at, int c, T3_col col);
+void	t3_drawString(T3_font *font, T3_bm bm, T3_pt at, char *s, int n, T3_col col);
+void	t3_drawUnicode(T3_font *font, T3_bm bm, T3_pt at, wchar_t *s, int n, T3_col col);
+int	t3_fitString(T3_font *font, float width, char *s, int n, float *ptotal);
+int	t3_fitUnicode(T3_font *font, float width, wchar_t *s, int n, float *ptotal);
+int	t3_hitString(T3_font *font, float x, char *s, int n);
+int	t3_hitUnicode(T3_font *font, float x, char *s, int n);

@@ -25,9 +25,11 @@ typedef struct {
 #define min(x,y) ((x<y)? x: y)
 #define LOADS(p,n) loads((u8*)((u16*)(p)+(n)))
 #define LOADI(p,n) loadi((u8*)((u32*)(p)+(n)))
+static
 loads(u8 *p) {
 	return (p[0] << 8) + p[1];
 }
+static
 loadi(u8 *p) {
 	return (p[0] << 24) + (p[1] << 16) + (p[2] << 8) + p[3];
 }
@@ -83,7 +85,7 @@ cmp_seg(const void *a, const void *b) {	/* sort by top */
 }
 
 static
-docmap(T3_face *face, void *dat) {
+docmap(T3_font *font, void *dat) {
 	void *org = dat;
 	u16 ntab, plat, enc, nseg;
 	void *st, *et, *dt, *ot;	/* start,end,delta,offset table */
@@ -108,51 +110,51 @@ docmap(T3_face *face, void *dat) {
 		c = LOADS(st, i), c2 = LOADS(et, i);
 		if (LOADS(ot, i))
 			for (; c <= c2; c++)
-				face->cmap[c] = LOADS(ot,
+				font->cmap[c] = LOADS(ot,
 					LOADS(ot, i) / 2 +
 					c - LOADS(st, i) + i);
 		else
 			for (; c <= c2; c++)
-				face->cmap[c] = LOADS(dt, i) + c;
+				font->cmap[c] = LOADS(dt, i) + c;
 	}
 	return 1;
 }
 
 static
-dohead(T3_face *face, void *dat) {
+dohead(T3_font *font, void *dat) {
 	short longloc;
 	unpack(&dat, "iiiissiiiisssssss:ss", &longloc);
-	face->longloc = longloc;
+	font->longloc = longloc;
 	return 1;
 }
 
 static
-dohhea(T3_face *face, void *dat, u16 *nhm) {
+dohhea(T3_font *font, void *dat, u16 *nhm) {
 	short	a, d;
 	unpack(&dat, "i:s:ssssssssssssss:s", &a, &d, nhm);
-	face->ascender = a;
-	face->descender = d;
-	face->scale.x /= a - d;
-	face->scale.y /= a - d;
+	font->ascender = a;
+	font->descender = d;
+	font->scale.x /= a - d;
+	font->scale.y /= a - d;
 	return 1;
 }
 
 static
-dohmtx(T3_face *face, void *dat, int n) {
+dohmtx(T3_font *font, void *dat, int n) {
 	u16 *src = dat;
 	int i;
 	for (i = 0; i < n; i++, src += 2)
-		face->adv[i] = LOADS(src, 0);
+		font->adv[i] = LOADS(src, 0);
 	for (src -= 2; i < 65536; i++)	/* Extend last entry */
-		face->adv[i] = LOADS(src, 0);
+		font->adv[i] = LOADS(src, 0);
 	return 1;
 }
 
 static
-domaxp(T3_face *face, void *dat) {
+domaxp(T3_font *font, void *dat) {
 	unsigned short n;
 	unpack(&dat, "i:s", &n);
-	face->nglyph = n;
+	font->nglyph = n;
 	return 1;
 }
 
@@ -167,53 +169,55 @@ findtab(void *start, void *dat, u32 want, int ntab) {
 	return 0;
 }
 
-t3_initFace(T3_face *face, void *dat, int index, float height) {
+t3_initFont(T3_font *font, void *dat, int index, float height) {
 	u16	ntab, longform, nhm;
 	void	*start = dat;
 	
-	memset(face, 0, sizeof face);
-	face->dat = dat;
-	memset(face->cmap, 0, sizeof(u16) * 65536);
-	face->scale = t3_pt(height, height);
-	face->samples = 2.0;
+	memset(font, 0, sizeof font);
+	font->dat = dat;
+	memset(font->cmap, 0, sizeof(u16) * 65536);
+	font->scale = t3_pt(height, height);
+	font->samples = 2.0;
 	
-	if (LOADI(dat, 0) == 'ttcf') { /* TrueType collection */
-		if (LOADI(dat, 2) <= index || index < 0)
-			return 0;
-		dat = (u8*)dat + LOADI(dat, 3+index);
-	}
+	if (LOADI(dat, 0) != 0x10000) /* Not TrueType 1.0 */
+		if (LOADI(dat, 0) == 'ttcf') { /* TrueType collection */
+			if (LOADI(dat, 2) <= index || index < 0)
+				return 1;
+			dat = (u8*)dat + LOADI(dat, 3+index);
+		} else
+			return 1;
 	unpack(&dat, "i:ssss", &ntab);	/* table header */
 
-	if ( !docmap(face, findtab(start, dat, 'cmap', ntab))
-	  || !dohead(face, findtab(start, dat, 'head', ntab))
-	  || !dohhea(face, findtab(start, dat, 'hhea', ntab), &nhm)
-	  || !dohmtx(face, findtab(start, dat, 'hmtx', ntab), nhm)
-	  || !domaxp(face, findtab(start, dat, 'maxp', ntab))
-	  || !(face->glyf = findtab(start, dat, 'glyf', ntab))
-	  || !(face->loca = findtab(start, dat, 'loca', ntab)))
-		return 0;
-	return 1;
-}
-
-void
-t3_rescale(T3_face *face, float height, float width) {
-	float s = face->ascender - face->descender;
-	if (width <= 0)
-		width = height;
-	face->scale = t3_pt(height / s, width /s);
-	t3_uncache(face, 0, face->nglyph);
-}
-
-t3_closeFace(T3_face *face) {
-	t3_uncache(face, 0, face->nglyph + 1);
+	if ( !docmap(font, findtab(start, dat, 'cmap', ntab))
+	  || !dohead(font, findtab(start, dat, 'head', ntab))
+	  || !dohhea(font, findtab(start, dat, 'hhea', ntab), &nhm)
+	  || !dohmtx(font, findtab(start, dat, 'hmtx', ntab), nhm)
+	  || !domaxp(font, findtab(start, dat, 'maxp', ntab))
+	  || !(font->glyf = findtab(start, dat, 'glyf', ntab))
+	  || !(font->loca = findtab(start, dat, 'loca', ntab)))
+		return 1;
 	return 0;
 }
 
+void
+t3_rescale(T3_font *font, float height, float width) {
+	float s = font->ascender - font->descender;
+	if (width <= 0)
+		width = height;
+	font->scale = t3_pt(height / s, width /s);
+	t3_uncache(font, 0, font->nglyph);
+}
+
+void
+t3_closeFont(T3_font *font) {
+	t3_uncache(font, 0, font->nglyph + 1);
+}
+
+void
 t3_clearBM(T3_bm bm, T3_col col) {
 	int	i;
 	for (i = 0; i < bm.x * bm.y; i++)
-		bm.bm[i] = col;
-	return 1;
+		bm.pix[i] = col;
 }
 
 
@@ -234,11 +238,11 @@ rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos, float samples,
 	int	w,j,x, x2;
 	T3_seg	*s;
 
-	bm.bm += (int)at.y * bm.x;
+	bm.pix += (int)at.y * bm.x;
 	if (at.y + my >= bm.y)
 		my = bm.y - at.y;
 	y = at.y;
-	for (i = 0; i < my; i++, y++, bm.bm += bm.x) {
+	for (i = 0; i < my; i++, y++, bm.pix += bm.x) {
 	for (ssi = 0; ssi < samples; ssi++) {
 		while (seg < eos && seg->b.y < i)
 			seg++;
@@ -274,12 +278,12 @@ rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos, float samples,
 			x = e->x;
 			x2 = min(bm.x, e[1].x);
 			for (j=max(x+1, 0); j<x2; j++)
-				bm.bm[j] = col;
+				bm.pix[j] = col;
 			if (x >= 0 && x < bm.x)
-				bm.bm[x] = blend(bm.bm[x], col,
+				bm.pix[x] = blend(bm.pix[x], col,
 					1 - (e->x - x));
 			if (x2 >= 0 && x2 < bm.x)
-				bm.bm[x2] = blend(bm.bm[x2], col,
+				bm.pix[x2] = blend(bm.pix[x2], col,
 					e[1].x - x2);
 		}
 	}
@@ -338,7 +342,8 @@ inflate(T3_seg *seg, T3_pt *p, u8 *flags, int np, void *ends) {
 	return seg;
 }
 
-t3_getShape(T3_face *face, T3_seg *segs, int g) {
+static
+getShape(T3_font *font, T3_seg *segs, int g) {
 	u8	flags[MAXPT];
 	T3_pt	points[MAXPT];
 	u8	*fileflag, *coord, *fp;
@@ -348,17 +353,17 @@ t3_getShape(T3_face *face, T3_seg *segs, int g) {
 	T3_pt	*pp;
 	
 	/* Lookup 'glyf' offset of g in 'loca' */
-	if (face->longloc)
-		i = LOADI(face->loca, g), v = LOADI(face->loca, g + 1);
+	if (font->longloc)
+		i = LOADI(font->loca, g), v = LOADI(font->loca, g + 1);
 	else
-		i = LOADS(face->loca, g) * 2, v = LOADS(face->loca, g + 1) * 2;
+		i = LOADS(font->loca, g) * 2, v = LOADS(font->loca, g + 1) * 2;
 
 	if (i == v)		/* Glyph has no contours */
 		return 0;
-	ends = (u8 *) face->glyf + i;
+	ends = (u8 *) font->glyf + i;
 	unpack(&ends, ":s:s:s:s:s", &nc, &ax, &ay, &bx, &by);
 
-	top = face->ascender;
+	top = font->ascender;
 
 	if (MAXPT <= (np = LOADS(ends, nc - 1) + 1))	/* last pt of last contour */
 		return 0;
@@ -387,9 +392,9 @@ t3_getShape(T3_face *face, T3_seg *segs, int g) {
 }
 
 void
-t3_uncache(T3_face *face, int lo, int hi) {
-	T3_seg	**p = face->seg + max(0, lo);
-	T3_seg	**end = face->seg + min(face->nglyph + 1, hi);
+t3_uncache(T3_font *font, int lo, int hi) {
+	T3_seg	**p = font->seg + max(0, lo);
+	T3_seg	**end = font->seg + min(font->nglyph + 1, hi);
 	for ( ; p < end; p++)
 		if (*p) {
 			free(*p);
@@ -398,73 +403,71 @@ t3_uncache(T3_face *face, int lo, int hi) {
 }
 
 void
-t3_cache(T3_face *face, int lo, int hi) {
+t3_cache(T3_font *font, int lo, int hi) {
 	T3_seg	segs[MAXSEG], *sp;
 	int	n, g;
 	
-	hi = min(face->nglyph + 1, hi);
+	hi = min(font->nglyph + 1, hi);
 	for (g = max(0, lo); g < hi; g++) {
-		n = t3_getShape(face, segs, g);
+		n = getShape(font, segs, g);
 		qsort(segs, n, sizeof *segs, cmp_seg);
 		for (sp = segs; sp < segs+n; sp++) {
-			sp->a.x *= face->scale.x;
-			sp->b.x *= face->scale.x;
-			sp->a.y *= face->scale.y;
-			sp->b.y *= face->scale.y;
+			sp->a.x *= font->scale.x;
+			sp->b.x *= font->scale.x;
+			sp->a.y *= font->scale.y;
+			sp->b.y *= font->scale.y;
 		}
-		face->seg[g] = memcpy(
+		font->seg[g] = memcpy(
 			malloc(n * sizeof(T3_seg)),
 			segs, n * sizeof(T3_seg));
-		face->nseg[g] = n;
+		font->nseg[g] = n;
 	}
 }
 
-t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g, T3_col col) {
-	if (g < 0 || g >= face->nglyph)
-		return 0;
-	if (at.x < -t3_getWidth(face,g) || at.x >= bm.x)
-		return 0;
-	if (at.y < -t3_getHeight(face) || at.y >= bm.y)
-		return 0;
+void
+t3_drawGlyph(T3_font *font, T3_bm bm, T3_pt at, int g, T3_col col) {
+	if (g < 0 || g >= font->nglyph
+	  || at.x < -t3_getGlyphWidth(font,g) || at.x >= bm.x
+	  || at.y < -t3_getHeight(font) || at.y >= bm.y)
+		return;
 
-	if (!face->seg[g])
-		t3_cache(face,g,g+1);
-	rasterize(bm, at, t3_getHeight(face) + 1,
-		face->seg[g], face->seg[g] + face->nseg[g],
-		face->samples, col);
-	return 1;
+	if (!font->seg[g])
+		t3_cache(font,g,g+1);
+	rasterize(bm, at, t3_getHeight(font) + 1,
+		font->seg[g], font->seg[g] + font->nseg[g],
+		font->samples, col);
 }
 
-t3_drawChar(T3_face *face, T3_bm bm, T3_pt at, int c, T3_col col) {
-	if (c < 0 && 65536 <= c)
-		return 0;
-	return t3_drawGlyph(face, bm, at, t3_getGlyph(face, c), col);
+void
+t3_drawChar(T3_font *font, T3_bm bm, T3_pt at, int c, T3_col col) {
+	if (c >= 0 && c<65536)
+		t3_drawGlyph(font, bm, at, t3_getGlyph(font, c), col);
 }
 
-t3_drawString(T3_face *face, T3_bm bm, T3_pt at, char *s, int n, T3_col col) {
+void
+t3_drawString(T3_font *font, T3_bm bm, T3_pt at, char *s, int n, T3_col col) {
 	for ( ; n && *s; n--, s++) {
-		int	g = t3_getGlyph(face, *s++);
-		t3_drawGlyph(face, bm, at, g, col);
-		at.x += t3_getWidth(face, g);
+		int	g = t3_getGlyph(font, *s++);
+		t3_drawGlyph(font, bm, at, g, col);
+		at.x += t3_getGlyphWidth(font, g);
 	}
-	return 1;
 }
 
-t3_drawUnicode(T3_face *face, T3_bm bm, T3_pt at, wchar_t *s, int n, T3_col col) {
+void
+t3_drawUnicode(T3_font *font, T3_bm bm, T3_pt at, wchar_t *s, int n, T3_col col) {
 	for ( ; n && *s; n--, s++) {
-		int	g = t3_getGlyph(face, *s);
-		t3_drawGlyph(face, bm, at, g, col);
-		at.x += t3_getWidth(face, g);
+		int	g = t3_getGlyph(font, *s);
+		t3_drawGlyph(font, bm, at, g, col);
+		at.x += t3_getGlyphWidth(font, g);
 	}
-	return 1;
 }
 
-t3_fitString(T3_face *face, float width, char *s, int n, float *ptotal) {
+t3_fitString(T3_font *font, float width, char *s, int n, float *ptotal) {
 	float	w, vx = 0;
 	int	g, count = 0;
 	for ( ; n && *s; n--, count++, vx += w) {
-		g = t3_getGlyph(face, *s++);
-		w = t3_getWidth(face, g);
+		g = t3_getGlyph(font, *s++);
+		w = t3_getGlyphWidth(font, g);
 		if (vx + w >= width)
 			break;
 	}
@@ -473,12 +476,12 @@ t3_fitString(T3_face *face, float width, char *s, int n, float *ptotal) {
 	return count;
 }
 
-t3_fitUnicode(T3_face *face, float width, wchar_t *s, int n, float *ptotal) {
+t3_fitUnicode(T3_font *font, float width, wchar_t *s, int n, float *ptotal) {
 	float	w, vx = 0;
 	int	g, count = 0;
 	for ( ; n && *s; n--, count++, vx += w) {
-		g = t3_getGlyph(face, *s++);
-		w = t3_getWidth(face, g);
+		g = t3_getGlyph(font, *s++);
+		w = t3_getGlyphWidth(font, g);
 		if (vx + w >= width)
 			break;
 	}
@@ -487,24 +490,24 @@ t3_fitUnicode(T3_face *face, float width, wchar_t *s, int n, float *ptotal) {
 	return count;
 }
 
-t3_hitString(T3_face *face, float x, char *s, int n) {
+t3_hitString(T3_font *font, float x, char *s, int n) {
 	float	w, vx = 0;
 	int	g, count = 0;
 	for ( ; n && *s; n--, count++, vx += w) {
-		g = t3_getGlyph(face, *s++);
-		w = t3_getWidth(face, g);
+		g = t3_getGlyph(font, *s++);
+		w = t3_getGlyphWidth(font, g);
 		if (vx + w >= x)
 			return count;
 	}
 	return count + 1;
 }
 
-t3_hitUnicode(T3_face *face, float x, char *s, int n) {
+t3_hitUnicode(T3_font *font, float x, char *s, int n) {
 	float	w, vx = 0;
 	int	g, count = 0;
 	for ( ; n && *s; n--, count++, vx += w) {
-		g = t3_getGlyph(face, *s++);
-		w = t3_getWidth(face, g);
+		g = t3_getGlyph(font, *s++);
+		w = t3_getGlyphWidth(font, g);
 		if (vx + w >= x)
 			return count;
 	}

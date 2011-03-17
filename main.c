@@ -9,7 +9,7 @@
 #include "t3.h"
 #include "t3w.h"
 
-T3_face		face;
+T3_font		font;
 T3_bm		bm;
 HBITMAP		bitmap;
 wchar_t		lines[20][4096];
@@ -23,9 +23,9 @@ init(wchar_t *fontname) {
 	if (!fontname)
 		fontname = L"Tahoma";
 		
-	if (!t3w_findFace(&face, fontname, 12*96/72.0))
-		return 0;
-	return 1;
+	if (t3w_findFont(&font, fontname, 12*96/72.0))
+		return 1;
+	return 0;
 }
 
 redraw(T3_bm bm) {
@@ -39,14 +39,14 @@ redraw(T3_bm bm) {
 		int	i,n,end = wcscspn(txt, L"\n");
 		txt[end] = 0;
 		for (i=0; i<end; i+=n) {
-			n = t3_fitUnicode(&face, bm.x, txt+i, -1, 0);
+			n = t3_fitUnicode(&font, bm.x, txt+i, -1, 0);
 			while (n>0 && txt[i+n] && !iswspace(txt[i+n]))
 				n--;
 			if (!n)
 				n = 1;
 			
-			t3_drawUnicode(&face, bm, pt, txt+i, n, col);
-			pt.y += t3_getHeight(&face);
+			t3_drawUnicode(&font, bm, pt, txt+i, n, col);
+			pt.y += t3_getHeight(&font);
 			if (iswspace(txt[i+n]))
 				n++;
 		}
@@ -81,17 +81,17 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_MOUSEWHEEL:
 		delta = (short)HIWORD(wparam)/120.0;
 		if (wparam & MK_CONTROL) {
-			face.samples += delta * 1;
-			if (face.samples < 1) face.samples = 1;
-			printf("samples: %f\n",face.samples);
+			font.samples += delta * 1;
+			if (font.samples < 1) font.samples = 1;
+			printf("samples: %f\n",font.samples);
 		} else {
-			if (t3_getHeight(&face) + delta > 0)
-				t3_rescale(&face,
-					t3_getHeight(&face) + 96./72/2*delta,
+			if (t3_getHeight(&font) + delta > 0)
+				t3_rescale(&font,
+					t3_getHeight(&font) + 96./72/2*delta,
 					0);
-			printf("scale: %f %fpx %fpt\n", face.scale.y,
-				t3_getHeight(&face),
-				t3_getHeight(&face) * 72/96);
+			printf("scale: %f %fpx %fpt\n", font.scale.y,
+				t3_getHeight(&font),
+				t3_getHeight(&font) * 72/96);
 		}
 		redraw(bm);
 		InvalidateRect(hwnd, 0, 0);
@@ -103,7 +103,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		break;
 	case WM_DESTROY:
 		DeleteObject(bitmap);
-		t3w_closeFace(&face);
+		t3w_closeFont(&font);
 		PostQuitMessage(0);
 		return 0;
 	}
@@ -121,7 +121,7 @@ wWinMain(HINSTANCE inst, HINSTANCE prev, LPTSTR cmd, int show) {
 	wc.hCursor=LoadCursor(0,IDC_ARROW);
 	RegisterClass(&wc);
 	
-	if (!init(cmd))
+	if (init(cmd))
 		return 0;
 		
 	hwnd=CreateWindow(L"Window", L"",
