@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "t3.h"
+#include "dumpbm.c"
 
 T3_face		face;
 T3_bm		bm;
@@ -61,13 +62,16 @@ loadFace(T3_face *face, char *fn, int index, float height) {
 }
 
 redraw(T3_bm bm) {
-	wchar_t	txt[128];
+	wchar_t	txt[16*1024];
 	FILE	*f = fopen("prologue.txt", "rb");
 	T3_pt	pt = t3_pt(0,0);
 	T3_col	col = t3_rgb(32,32,32);
+//	T3_col	col = t3_rgb(0,0,0);
+//	T3_col	col = t3_rgb(160,160,160);
 	
 	clearBM(bm, t3_rgb(255,255,230));
-	while (fgetws(txt, 128, f)) {
+//	clearBM(bm, t3_rgb(255,255,255));
+	while (fgetws(txt, sizeof txt/sizeof *txt, f)) {
 		int	i,n,end = wcscspn(txt, L"\n");
 		txt[end] = 0;
 		for (i=0; i<end; i+=n) {
@@ -90,6 +94,7 @@ LRESULT CALLBACK
 WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	PAINTSTRUCT	ps;
 	HDC		cdc;
+	float		delta;
 	
 	switch (msg) {
 	case WM_PAINT:
@@ -110,10 +115,34 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 	case WM_ERASEBKGND:
 		return 1;
+	case WM_MOUSEWHEEL:
+		delta = (short)HIWORD(wparam)/120.0;
+		if (wparam & MK_SHIFT) {
+			face.contrast += delta * .1;
+			if (face.contrast < 0) face.contrast = 0;
+			if (face.contrast > 1) face.contrast = 1;
+			printf("contrast: %f\n",face.contrast);
+		} else if (wparam & MK_CONTROL) {
+			face.samples += delta * 1;
+			if (face.samples < 1) face.samples = 1;
+			printf("samples: %f\n",face.samples);
+		} else {
+			if (t3_getHeight(&face) + delta > 0)
+				t3_rescale(&face,
+					t3_getHeight(&face) + 96./72/2*delta,
+					0);
+			printf("scale: %f %fpx %fpt\n", face.scale.y,
+				t3_getHeight(&face),
+				t3_getHeight(&face) * 72/96);
+		}
+		redraw(bm);
+		InvalidateRect(hwnd, 0, 0);
+		return 1;
 	case WM_SIZE:
 		DeleteObject(bitmap);
 		bitmap = initBM(&bm, LOWORD(lparam), HIWORD(lparam));
 		redraw(bm);
+//		dump32bm("out.bmp", bm.bm, bm.x, bm.y);
 		break;
 	case WM_DESTROY:
 		DeleteObject(bitmap);
@@ -134,8 +163,8 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	wc.hCursor=LoadCursor(0,IDC_ARROW);
 	RegisterClass(&wc);
 	
-	loadFace(&face, "c:/Windows/Fonts/cour.ttf",
-		0, 12*96/72.0);
+	loadFace(&face, "c:/Windows/Fonts/times.ttf",
+		0, 14*96/72.0);
 	
 	hwnd=CreateWindow(L"Window", L"",
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE,

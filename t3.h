@@ -27,6 +27,9 @@ typedef struct {
 	int	ascender;	/* ascender */
 	int	descender;	/* descender */
 	
+	float	samples;	/* Subsamples */
+	float	contrast;	/* contrast */
+	
 	int	longloc;	/* 'loca' table holds longs */
 	void	*loca;		/* pointer to 'loca' table */
 	int	nglyph;		/* number of glyphs */
@@ -76,6 +79,7 @@ t3_getHeight(T3_face *face) {
 
 int	t3_initFace(T3_face *face, void *dat, int index, float height);
 int	t3_close(T3_face *face);
+void	t3_rescale(T3_face *face, float height, float width);
 void	t3_uncache(T3_face *face, int lo, int hi);
 void	t3_cache(T3_face *face, int lo, int hi);
 
