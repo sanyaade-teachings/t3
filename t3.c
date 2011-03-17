@@ -175,8 +175,7 @@ t3_initFace(T3_face *face, void *dat, int index, float height) {
 	face->dat = dat;
 	memset(face->cmap, 0, sizeof(u16) * 65536);
 	face->scale = t3_pt(height, height);
-	face->samples = 3.0;
-	face->contrast = 1.0;
+	face->samples = 2.0;
 	
 	if (LOADI(dat, 0) == 'ttcf') { /* TrueType collection */
 		if (LOADI(dat, 2) <= index || index < 0)
@@ -205,9 +204,16 @@ t3_rescale(T3_face *face, float height, float width) {
 	t3_uncache(face, 0, face->nglyph);
 }
 
-t3_close(T3_face *face) {
+t3_closeFace(T3_face *face) {
 	t3_uncache(face, 0, face->nglyph + 1);
 	return 0;
+}
+
+t3_clearBM(T3_bm bm, T3_col col) {
+	int	i;
+	for (i = 0; i < bm.x * bm.y; i++)
+		bm.bm[i] = col;
+	return 1;
 }
 
 
@@ -222,8 +228,7 @@ blend(T3_col src, T3_col col, float a) {
 }
 
 static void
-rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos,
-  float samples, float contrast, T3_col col) {
+rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos, float samples, T3_col col) {
 	Edge	edges[MAXSEG], *e, *eoe;
 	float	i,y,ssi,ssy;
 	int	w,j,x, x2;
@@ -272,10 +277,10 @@ rasterize(T3_bm bm, T3_pt at, float my, T3_seg *seg, T3_seg *eos,
 				bm.bm[j] = col;
 			if (x >= 0 && x < bm.x)
 				bm.bm[x] = blend(bm.bm[x], col,
-					(1 - (e->x - x) * contrast));
+					1 - (e->x - x));
 			if (x2 >= 0 && x2 < bm.x)
 				bm.bm[x2] = blend(bm.bm[x2], col,
-					(e[1].x - x2) * contrast);
+					e[1].x - x2);
 		}
 	}
 	}
@@ -426,7 +431,7 @@ t3_drawGlyph(T3_face *face, T3_bm bm, T3_pt at, int g, T3_col col) {
 		t3_cache(face,g,g+1);
 	rasterize(bm, at, t3_getHeight(face) + 1,
 		face->seg[g], face->seg[g] + face->nseg[g],
-		face->samples, face->contrast, col);
+		face->samples, col);
 	return 1;
 }
 

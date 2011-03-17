@@ -28,7 +28,6 @@ typedef struct {
 	int	descender;	/* descender */
 	
 	float	samples;	/* Subsamples */
-	float	contrast;	/* contrast */
 	
 	int	longloc;	/* 'loca' table holds longs */
 	void	*loca;		/* pointer to 'loca' table */
@@ -78,10 +77,12 @@ t3_getHeight(T3_face *face) {
 }
 
 int	t3_initFace(T3_face *face, void *dat, int index, float height);
-int	t3_close(T3_face *face);
+int	t3_closeFace(T3_face *face);
 void	t3_rescale(T3_face *face, float height, float width);
 void	t3_uncache(T3_face *face, int lo, int hi);
 void	t3_cache(T3_face *face, int lo, int hi);
+
+int	t3_clearBM(T3_bm bm, T3_col col);
 
 int	t3_getGlyph(T3_face *face, int c);
 int	t3_getShape(T3_face *face, T3_seg *segs, int g);
